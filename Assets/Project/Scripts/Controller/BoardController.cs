@@ -10,7 +10,6 @@ public partial class BoardController : MonoBehaviour
     public static BoardController Instance;
     
     [SerializeField] private StageData[] stageDatas;
-
     [SerializeField] private GameObject boardBlockPrefab;
     [SerializeField] private GameObject blockGroupPrefab; 
     [SerializeField] private GameObject blockPrefab;
@@ -30,6 +29,7 @@ public partial class BoardController : MonoBehaviour
     private Dictionary<(int x, int y), BoardBlockObject> boardBlockDic;
     private Dictionary<(int, bool), BoardBlockObject> standardBlockDic = new Dictionary<(int, bool), BoardBlockObject>();
     private Dictionary<(int x, int y), Dictionary<(DestroyWallDirection, ColorType), int>> wallCoorInfoDic;
+    public Dictionary<(int x, int y), Dictionary<(DestroyWallDirection, ColorType), int>> WallCoorInfoDic => wallCoorInfoDic;
 
     private WallFactory wallFactory;
     private BoardFactory boardFactory;
@@ -43,11 +43,14 @@ public partial class BoardController : MonoBehaviour
     private readonly float blockDistance = 0.79f;
 
     private int nowStageIndex = 0;
+    
+    private IObjectFactory objectFactory;
 
     private void Awake()
     {
         Instance = this;
         Application.targetFrameRate = 60;
+        objectFactory = new ObjectFactory();
     }
 
     private void Start()
@@ -63,36 +66,70 @@ public partial class BoardController : MonoBehaviour
             return;
         }
 
+        ResetData();
+
+        CreateFactories();
+        await InitializeBoard(stageIdx);
+        await InitializeBlocks(stageIdx);
+
+        CreateMaskingTemp();
+    }
+
+    private void ResetData()
+    {
         boardBlockDic = new Dictionary<(int x, int y), BoardBlockObject>();
         CheckBlockGroupDic = new Dictionary<int, List<BoardBlockObject>>();
-
         boardParent = new GameObject("BoardParent");
         boardParent.transform.SetParent(transform);
-        
-        wallFactory = new WallFactory(wallPrefabs, wallMaterials, blockDistance, boardParent.transform);
-        
-        await wallFactory.CreateWalls(stageDatas[stageIdx]);
+    }
 
-        wallCoorInfoDic = wallFactory.WallCoordinateInfoDic;
-        walls = wallFactory.Walls;
-
+    private void CreateFactories()
+    {
+        wallFactory = new WallFactory(objectFactory, wallPrefabs, wallMaterials, boardParent.transform);
         boardFactory = new BoardFactory(boardBlockPrefab, blockDistance, boardParent.transform, wallCoorInfoDic);
+        blockGroupFactory = new BlockGroupFactory(blockGroupPrefab, blockPrefab, testBlockMaterials, blockDistance, boardWidth, boardHeight, boardBlockDic);
+    }
+
+    private async Task InitializeBoard(int stageIdx)
+    {
+        await wallFactory.CreateWalls(stageDatas[stageIdx]);
+        wallCoorInfoDic = wallFactory.WallCoordinateInfoDic;
 
         await boardFactory.CreateBoard(stageDatas[stageIdx]);
-
         boardBlockDic = boardFactory.BoardBlockDic;
         CheckBlockGroupDic = boardFactory.CheckBlockGroupDic;
         boardWidth = boardFactory.BoardWidth;
         boardHeight = boardFactory.BoardHeight;
-        
-        blockGroupFactory = new BlockGroupFactory(blockGroupPrefab, blockPrefab, testBlockMaterials,
-            blockDistance, boardWidth, boardHeight, boardBlockDic);
+        walls = wallFactory.Walls;
+    }
 
+    private async Task InitializeBlocks(int stageIdx)
+    {
         await blockGroupFactory.CreateBlockGroups(stageDatas[stageIdx]);
-
         playingBlockParent = blockGroupFactory.PlayingBlockParent.gameObject;
+    }
+    
+    public void DestroyBlockGroup(BlockObject block)
+    {
+        if (boardBlockDic.TryGetValue(((int)block.x, (int)block.y), out var boardBlock))
+        {
+            if (boardBlock.checkGroupIdx.Count > 0)
+            {
+                int groupIdx = boardBlock.checkGroupIdx[0];
+                if (CheckBlockGroupDic.TryGetValue(groupIdx, out var blocks))
+                {
+                    foreach (var b in blocks)
+                    {
+                        Destroy(b.playingBlock.gameObject);
+                        b.playingBlock = null;
+                    }
 
-        CreateMaskingTemp();
+                    CheckBlockGroupDic.Remove(groupIdx);
+
+                    Instantiate(destroyParticlePrefab, boardBlock.transform.position, Quaternion.identity);
+                }
+            }
+        }
     }
 
     public void GoToPreviousLevel()
@@ -100,28 +137,32 @@ public partial class BoardController : MonoBehaviour
         if (nowStageIndex == 0) return;
 
         Destroy(boardParent);
+        boardParent = null;
         Destroy(playingBlockParent.gameObject);
+        playingBlockParent = null;
         Init(--nowStageIndex);
-        
-        StartCoroutine(Wait());
+
+        StartCoroutine(AdjustCameraPosition());
     }
 
     public void GotoNextLevel()
     {
         if (nowStageIndex == stageDatas.Length - 1) return;
-        
+
         Destroy(boardParent);
+        boardParent = null;
         Destroy(playingBlockParent.gameObject);
+        playingBlockParent = null;
         Init(++nowStageIndex);
-        
-        StartCoroutine(Wait());
+
+        StartCoroutine(AdjustCameraPosition());
     }
 
-    IEnumerator Wait()
+    private IEnumerator AdjustCameraPosition()
     {
         yield return null;
-        
+
         Vector3 camTr = Camera.main.transform.position;
-        Camera.main.transform.position = new Vector3(1.5f + 0.5f * (boardWidth - 4),camTr.y,camTr.z);
-    } 
+        Camera.main.transform.position = new Vector3(1.5f + 0.5f * (boardWidth - 4), camTr.y, camTr.z);
+    }
 }

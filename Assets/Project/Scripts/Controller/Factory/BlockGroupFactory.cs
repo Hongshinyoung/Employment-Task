@@ -80,7 +80,6 @@ public class BlockGroupFactory
                     blockObj.offsetToCenter = new Vector2(shape.offset.x, shape.offset.y);
 
                     dragHandler.blocks.Add(blockObj);
-
                     if (boardBlockDic.TryGetValue(((int)blockObj.x, (int)blockObj.y), out var boardBlock))
                     {
                         boardBlock.playingBlock = blockObj;
