@@ -623,6 +623,7 @@ MonoBehaviour:
   quadPrefab: {fileID: 1321952258069561797, guid: a31c0f0e43e384b3da3b0b1f8aaa9876,
     type: 3}
   stageDatas:
+  - {fileID: 11400000, guid: cb4c3faaa0f2c0947b20a5e8cfade803, type: 2}
   - {fileID: 11400000, guid: ed3115cbf9b924db1b50fa0673025536, type: 2}
   - {fileID: 11400000, guid: a03a08af939664777995f970a9621f90, type: 2}
   - {fileID: 11400000, guid: e828b18c6036540ce96e1de8bce974ed, type: 2}
