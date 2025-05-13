@@ -5,16 +5,18 @@ using UnityEngine;
 
 public class WallFactory
 {
+    private readonly IObjectFactory objectFactory;
     private readonly float blockDistance;
     private readonly Transform boardParent;
     private readonly Material[] wallMaterials;
     private readonly GameObject[] wallPrefabs;
 
-    public WallFactory(GameObject[] wallPrefabs, Material[] wallMaterials, float blockDistance, Transform boardParent)
+    public WallFactory(IObjectFactory objectFactory, GameObject[] wallPrefabs, Material[] wallMaterials, Transform boardParent)
     {
+        this.objectFactory = objectFactory;
         this.wallPrefabs = wallPrefabs;
         this.wallMaterials = wallMaterials;
-        this.blockDistance = blockDistance;
+        this.blockDistance = Constants.BlockDistance;
         this.boardParent = boardParent;
 
         WallCoordinateInfoDic = new Dictionary<(int x, int y), Dictionary<(DestroyWallDirection, ColorType), int>>();
@@ -32,8 +34,9 @@ public class WallFactory
             return;
         }
 
-        GameObject wallsParent = new GameObject("CustomWallsParent");
+        GameObject wallsParent = new GameObject(Constants.CustomWallsParentName);
         wallsParent.transform.SetParent(boardParent);
+        
 
         foreach (var wallData in stageData.Walls)
         {
@@ -41,25 +44,22 @@ public class WallFactory
 
             if (shouldAddWallInfo && wallData.wallColor != ColorType.None)
             {
-                var pos = (wallData.x, wallData.y);
-                var wallInfo = (destroyDirection, wallData.wallColor);
-
-                if (!WallCoordinateInfoDic.ContainsKey(pos))
-                    WallCoordinateInfoDic[pos] = new Dictionary<(DestroyWallDirection, ColorType), int>();
-                WallCoordinateInfoDic[pos][wallInfo] = wallData.length;
+                AddWallInfo(wallData, destroyDirection);
             }
 
-            // 길이에 따른 위치 조정 (수평/수직 벽만)
             AdjustWallPositionForLength(ref position, wallData);
 
             if (wallData.length - 1 >= 0 && wallData.length - 1 < wallPrefabs.Length)
             {
-                var wallObj = Object.Instantiate(wallPrefabs[wallData.length - 1], wallsParent.transform);
+                var wallObj = objectFactory.Instantiate(wallPrefabs[wallData.length - 1], wallsParent.transform);
                 wallObj.transform.position = position;
                 wallObj.transform.rotation = rotation;
+                
+                wallObj.layer = LayerMask.NameToLayer("Wall");
 
                 var wall = wallObj.GetComponent<WallObject>();
                 wall.SetWall(wallMaterials[(int)wallData.wallColor], wallData.wallColor != ColorType.None);
+                Debug.Log($"[WallFactory] Wall GameObject at {wallObj.transform.position}");
 
                 Walls.Add(wallObj);
             }
@@ -70,6 +70,17 @@ public class WallFactory
         }
 
         await Task.Yield();
+    }
+
+    private void AddWallInfo(WallData wallData, DestroyWallDirection destroyDirection)
+    {
+        var pos = (wallData.x, wallData.y);
+        var wallInfo = (destroyDirection, wallData.wallColor);
+
+        if (!WallCoordinateInfoDic.ContainsKey(pos))
+            WallCoordinateInfoDic[pos] = new Dictionary<(DestroyWallDirection, ColorType), int>();
+
+        WallCoordinateInfoDic[pos][wallInfo] = wallData.length;
     }
 
     private (Vector3 position, Quaternion rotation, DestroyWallDirection destroyDirection, bool shouldAddWallInfo)

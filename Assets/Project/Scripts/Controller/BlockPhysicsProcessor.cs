@@ -2,19 +2,14 @@ using UnityEngine;
 
 public class BlockPhysicsProcessor : MonoBehaviour
 {
-    [SerializeField] private BlockDragController controller;
+    [SerializeField] private BlockDragController dragController;
 
     private Rigidbody rb;
     private Vector3 targetPosition;
-    
+
     private Vector3 lastCollisionNormal;
     private bool isColliding;
     private float lastCollisionTime;
-
-    private readonly float collisionResetTime = 0.1f;
-    private readonly float moveSpeed = 25f;
-    private readonly float followSpeed = 30f;
-    private readonly float maxSpeed = 20f;
 
     private void Awake()
     {
@@ -23,7 +18,7 @@ public class BlockPhysicsProcessor : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!controller.IsDragging()) return;
+        if (!dragController.IsDragging()) return;
 
         Vector3 moveVector = targetPosition - transform.position;
 
@@ -34,15 +29,15 @@ public class BlockPhysicsProcessor : MonoBehaviour
         }
 
         Vector3 velocity = isColliding
-            ? Vector3.ProjectOnPlane(moveVector, lastCollisionNormal) * moveSpeed
-            : moveVector * followSpeed;
+            ? Vector3.ProjectOnPlane(moveVector, lastCollisionNormal) * Constants.MoveSpeed
+            : moveVector * Constants.FollowSpeed;
 
-        if (velocity.magnitude > maxSpeed)
-            velocity = velocity.normalized * maxSpeed;
+        if (velocity.magnitude > Constants.MaxSpeed)
+            velocity = velocity.normalized * Constants.MaxSpeed;
 
         rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, velocity, Time.fixedDeltaTime * 10f);
 
-        if (isColliding && Time.time - lastCollisionTime > collisionResetTime)
+        if (isColliding && Time.time - lastCollisionTime > Constants.CollisionResetTime)
             ResetCollisionState();
     }
 
@@ -63,16 +58,31 @@ public class BlockPhysicsProcessor : MonoBehaviour
 
     private void HandleCollision(Collision collision)
     {
-        if (!controller.IsDragging()) return;
+        if (!dragController.IsDragging()) return;
 
-        if (collision.contactCount > 0 && collision.gameObject.layer != LayerMask.NameToLayer("Board"))
+        if (collision.gameObject.layer == LayerMask.NameToLayer("Wall"))
         {
-            Vector3 normal = collision.contacts[0].normal;
-            if (Vector3.Dot(normal, Vector3.up) < 0.8f)
+            Vector3 wallPosition = collision.transform.position;
+            int wallX = Mathf.RoundToInt((wallPosition.x - Constants.BlockDistance * 0.5f) / Constants.BlockDistance);
+            int wallY = Mathf.RoundToInt((wallPosition.z - Constants.BlockDistance * 0.5f) / Constants.BlockDistance);
+
+            if (BoardController.Instance.WallCoorInfoDic.TryGetValue((wallX, wallY), out var wallInfo))
             {
-                isColliding = true;
-                lastCollisionNormal = normal;
-                lastCollisionTime = Time.time;
+                foreach (var keyValue in wallInfo)
+                {
+                    ColorType wallColor = keyValue.Key.Item2;
+                    if (dragController.Handler != null && dragController.Handler.blocks != null)
+                    {
+                        foreach (var block in dragController.Handler.blocks)
+                        {
+                            if (block.colorType == wallColor)
+                            {
+                                BoardController.Instance.DestroyBlockGroup(block);
+                                return;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

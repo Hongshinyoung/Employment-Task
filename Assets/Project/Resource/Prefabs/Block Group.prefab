@@ -108,4 +108,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: be9e22681d348ca41ba25aec2191f3d6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  controller: {fileID: 583162533578171191}
+  dragController: {fileID: 583162533578171191}

@@ -1,9 +1,10 @@
 using System;
 using UnityEngine;
 
-public class BlockDragController : MonoBehaviour
+public class BlockDragController : MonoBehaviour, IDragStateProvider
 {
     [SerializeField] private BlockDragHandler handler;
+    public BlockDragHandler Handler => handler;
     private Camera mainCamera;
     private Vector3 offset;
     private float zDistanceToCamera;
